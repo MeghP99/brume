@@ -53,8 +53,7 @@ struct Dashboard: View {
     @State private var restoreConfirmation = false
     @Environment(\.scenePhase) private var phase
 
-    private let violet = Color(red: 0.70, green: 0.62, blue: 1.0)
-    private let teal = Color(red: 0.35, green: 0.92, blue: 0.88)
+    private let accent = Color(red: 0.55, green: 0.73, blue: 0.85)
 
     var body: some View {
         HStack(spacing: 0) {
@@ -85,11 +84,23 @@ struct Dashboard: View {
             .padding(.bottom, 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .disabled(draft != nil)
+        .accessibilityHidden(draft != nil)
+        .blur(radius: draft == nil ? 0 : 5)
         .background { backdrop }
-        .tint(violet)
-        .sheet(item: $draft) { rule in
-            ShortcutEditor(rule: rule, store: store) { saved in selectedID = saved.id }
+        .overlay {
+            if let draft {
+                Rectangle().fill(.black.opacity(0.20)).ignoresSafeArea()
+                ShortcutEditor(rule: draft, store: store, onSave: { saved in
+                    selectedID = saved.id
+                    self.draft = nil
+                }, onDismiss: {
+                    self.draft = nil
+                })
+                .id(draft.id)
+            }
         }
+        .tint(accent)
         .alert("Use SpaceMouse for shortcuts?", isPresented: $store.confirmTakeover) {
             Button("Cancel", role: .cancel) {}
             Button("Switch to SpaceMouse") { store.takeOver() }
@@ -106,14 +117,13 @@ struct Dashboard: View {
     private var backdrop: some View {
         ZStack {
             DesktopGlass()
-            LinearGradient(colors: [Color(red: 0.05, green: 0.05, blue: 0.18).opacity(0.54),
-                                    Color(red: 0.04, green: 0.06, blue: 0.14).opacity(0.44),
-                                    Color(red: 0.02, green: 0.10, blue: 0.17).opacity(0.44)],
+            LinearGradient(colors: [.black.opacity(0.49), .black.opacity(0.35)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-            RadialGradient(colors: [Color(red: 0.38, green: 0.19, blue: 0.91).opacity(0.35), .clear],
-                           center: .init(x: 0.18, y: -0.10), startRadius: 0, endRadius: 560)
-            RadialGradient(colors: [Color(red: 0.07, green: 0.64, blue: 0.78).opacity(0.24), .clear],
-                           center: .init(x: 0.90, y: 0.93), startRadius: 0, endRadius: 480)
+            RadialGradient(colors: [Color(red: 0.72, green: 0.87, blue: 1).opacity(0.22), .clear],
+                           center: .topLeading, startRadius: 0, endRadius: 520)
+            RadialGradient(colors: [Color(red: 0.32, green: 0.60, blue: 0.86).opacity(0.16), .clear],
+                           center: .bottomTrailing, startRadius: 0, endRadius: 480)
+            FrostDust()
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
@@ -127,8 +137,8 @@ struct Dashboard: View {
                     .foregroundStyle(.white)
                     .frame(width: 34, height: 34)
                     .background(
-                        LinearGradient(colors: [Color(red: 0.69, green: 0.51, blue: 1),
-                                                Color(red: 0.26, green: 0.27, blue: 0.89)],
+                        LinearGradient(colors: [Color(red: 0.55, green: 0.69, blue: 0.80),
+                                                Color(red: 0.20, green: 0.34, blue: 0.46)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing),
                         in: .rect(cornerRadius: 11)
                     )
@@ -187,7 +197,7 @@ struct Dashboard: View {
                       systemImage: store.running ? "pause.fill" : "play.fill")
             }
             .buttonStyle(.glassProminent)
-            .tint(violet)
+            .tint(accent)
             .controlSize(.large)
         }
     }
@@ -245,9 +255,9 @@ struct Dashboard: View {
                 HStack(spacing: 11) {
                     Image(systemName: rule.action.symbol)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(rule.enabled ? violet : Color.secondary)
+                        .foregroundStyle(rule.enabled ? accent : Color.secondary)
                         .frame(width: 33, height: 33)
-                        .background(violet.opacity(rule.enabled ? 0.11 : 0.04), in: .rect(cornerRadius: 9))
+                        .background(accent.opacity(rule.enabled ? 0.11 : 0.04), in: .rect(cornerRadius: 9))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(rule.action.title).font(.system(size: 13, weight: .semibold))
                         Text("\(rule.modifier.title) · \(rule.input.title)")
@@ -281,7 +291,7 @@ struct Dashboard: View {
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 8)
-        .background(selectedID == rule.id ? violet.opacity(0.08) : .clear)
+        .background(selectedID == rule.id ? accent.opacity(0.08) : .clear)
     }
 
     private func preview(_ rule: BindingRule?) -> some View {
@@ -289,12 +299,14 @@ struct Dashboard: View {
             Text("Layout preview").font(.headline)
             ZStack {
                 RoundedRectangle(cornerRadius: 15)
-                    .fill(LinearGradient(colors: [violet.opacity(0.61), Color(red: 0.17, green: 0.36, blue: 0.74),
-                                                  teal.opacity(0.75)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(LinearGradient(colors: [Color(red: 0.40, green: 0.56, blue: 0.68),
+                                                  Color(red: 0.16, green: 0.28, blue: 0.42),
+                                                  Color(red: 0.30, green: 0.49, blue: 0.61)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
                 WindowDiagram(action: rule?.action ?? .tileTop)
                     .padding(20)
             }
-.frame(height: 144)
+            .frame(height: 144)
             .overlay { RoundedRectangle(cornerRadius: 15).strokeBorder(.white.opacity(0.23)) }
             .accessibilityHidden(true)
             Text(rule?.action.title ?? "Add a shortcut").font(.system(size: 16, weight: .semibold))
@@ -391,7 +403,7 @@ private struct ShortcutEditor: View {
     @State var rule: BindingRule
     @ObservedObject var store: ShortcutStore
     let onSave: (BindingRule) -> Void
-    @Environment(\.dismiss) private var dismiss
+    let onDismiss: () -> Void
 
     private var existing: Bool { store.rules.contains { $0.id == rule.id } }
     private var conflict: Bool { store.rules.contains { rule.conflicts(with: $0) } }
@@ -399,39 +411,60 @@ private struct ShortcutEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 19) {
             Text(existing ? "Edit shortcut" : "Add shortcut").font(.title2.weight(.semibold))
-            Form {
-                Picker("Modifier", selection: $rule.modifier) {
-                    ForEach(Modifier.allCases) { Text($0.title).tag($0) }
+            Grid(alignment: .leading, horizontalSpacing: 22, verticalSpacing: 13) {
+                GridRow {
+                    Text("Modifier").foregroundStyle(.secondary)
+                    Picker("Modifier", selection: $rule.modifier) {
+                        ForEach(Modifier.allCases) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
                 }
-                Picker("Mouse input", selection: $rule.input) {
-                    ForEach(MouseInput.allCases) { Text($0.title).tag($0) }
+                GridRow {
+                    Text("Mouse input").foregroundStyle(.secondary)
+                    Picker("Mouse input", selection: $rule.input) {
+                        ForEach(MouseInput.allCases) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
                 }
-                Picker("Action", selection: $rule.action) {
-                    ForEach(ShortcutAction.allCases) { Text($0.title).tag($0) }
+                GridRow {
+                    Text("Action").foregroundStyle(.secondary)
+                    Picker("Action", selection: $rule.action) {
+                        ForEach(ShortcutAction.allCases) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
                 }
-                Toggle("Enabled", isOn: $rule.enabled)
+                GridRow {
+                    Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+                    Toggle("Enabled", isOn: $rule.enabled).toggleStyle(.switch)
+                }
             }
+            .pickerStyle(.menu)
             if conflict {
                 Label("That combination is already enabled.", systemImage: "exclamationmark.circle")
                     .font(.caption).foregroundStyle(.red)
             }
             HStack {
                 if existing {
-                    Button("Delete", role: .destructive) { store.delete(rule); dismiss() }
+                    Button("Delete", role: .destructive) { store.delete(rule); onDismiss() }
                 }
                 Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel", role: .cancel) { onDismiss() }
+                    .buttonStyle(.glass)
+                    .keyboardShortcut(.cancelAction)
                 Button("Save") {
                     store.save(rule)
                     onSave(rule)
-                    dismiss()
                 }
+                .buttonStyle(.glassProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(conflict)
             }
         }
-        .padding(23)
-        .frame(width: 440)
+        .padding(25)
+        .frame(width: 420)
+        .glassPanel(radius: 23)
+        .shadow(color: .black.opacity(0.30), radius: 22, y: 10)
+        .accessibilityAddTraits(.isModal)
     }
 }
 
@@ -453,6 +486,23 @@ private extension View {
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
                 .allowsHitTesting(false)
         }
+    }
+}
+
+private struct FrostDust: View {
+    var body: some View {
+        Canvas { context, size in
+            let ice = Color(red: 0.83, green: 0.93, blue: 1)
+            for index in 0..<50 {
+                let x = CGFloat((index * 73 + 31) % 997) / 997
+                let y = CGFloat((index * 97 + 17) % 659) / 659
+                let diameter: CGFloat = index.isMultiple(of: 9) ? 2.4 : 1.4
+                let brightness = 0.08 + Double(index % 5) * 0.025
+                let flake = CGRect(x: x * size.width, y: y * size.height, width: diameter, height: diameter)
+                context.fill(Path(ellipseIn: flake), with: .color(ice.opacity(brightness)))
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
