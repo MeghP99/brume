@@ -38,9 +38,7 @@ struct ShortcutChecks {
             ("Control + middle-click", .maskControl, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .fullScreen),
             ("Option + left-click", .maskAlternate, .leftMouseDown, .leftMouseUp, .leftMouseDragged, .left, .tileTop),
             ("Option + right-click", .maskAlternate, .rightMouseDown, .rightMouseUp, .rightMouseDragged, .right, .tileBottom),
-            ("Option + middle-click", .maskAlternate, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .fill),
-            ("Control + Option + middle-click", [.maskControl, .maskAlternate], .otherMouseDown, .otherMouseUp,
-             .otherMouseDragged, .center, .fill)
+            ("Option + middle-click", .maskAlternate, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .fill)
         ]
         for (label, flags, down, up, drag, button, action) in clicks {
             let ordinary = mouse(down, button: button, flags: [])
@@ -166,11 +164,20 @@ struct ShortcutChecks {
         upgraded.action = .fill
         try check(BindingRule.migratingOptionMiddleClick(in: rules) == [upgraded, unrelated],
                   "Existing Option + middle-click Center must become Fill without changing its ID")
-        let customizedFillGesture = BindingRule(modifier: .controlOption, input: .middle, action: .restore, enabled: false)
-        try check(BindingRule.addingDefault(.fillDefault, to: rules) == rules + [.fillDefault],
-                  "Existing settings must gain Fill when its gesture is free")
-        try check(BindingRule.addingDefault(.fillDefault, to: rules + [customizedFillGesture]) == rules + [customizedFillGesture],
-                  "The Fill migration must preserve existing user bindings")
+        let oldFill = BindingRule(modifier: .controlOption, input: .middle, action: .fill)
+        let currentFill = BindingRule(modifier: .option, input: .middle, action: .fill)
+        let custom = BindingRule(modifier: .controlOption, input: .middle, action: .restore)
+        try check(BindingRule.removingRedundantFill(in: [currentFill, oldFill, unrelated]) == [currentFill, unrelated],
+                  "Only the redundant Fill binding should be removed")
+        try check(BindingRule.removingRedundantFill(in: [oldFill, unrelated]) == [oldFill, unrelated],
+                  "The migration must preserve an old Fill binding when it is the only one")
+        try check(BindingRule.removingRedundantFill(in: [currentFill, custom]) == [currentFill, custom],
+                  "The migration must preserve a custom action on the old gesture")
+        let defaultEngine = ShortcutEngine()
+        let combinedClick = mouse(.otherMouseDown, button: .center, flags: [.maskControl, .maskAlternate])
+        try check(defaultEngine.route(.otherMouseDown, combinedClick, target: target, at: 1) == .pass,
+                  "The retired Control + Option + middle-click must pass through")
+        try check(BindingRule.starter.filter { $0.action == .fill }.count == 1, "The starter list must show one Fill binding")
         print("PASS Conflict detection, explicit replacement, and migration of existing shortcuts")
     }
 

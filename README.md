@@ -27,7 +27,6 @@ Try the shortcuts while another app has focus. The shortcut editor itself passes
 | Option + left-click | Tile top |
 | Option + right-click | Tile bottom |
 | Option + middle-click | Fill the desktop without entering full screen |
-| Control + Option + middle-click | Fill the desktop without entering full screen |
 
 The starter set also includes disabled bindings for Mission Control and the two mouse side buttons.
 

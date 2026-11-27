@@ -133,7 +133,6 @@ struct BindingRule: Codable, Identifiable, Equatable {
     }
 
     static let optionMiddleFill = Self(modifier: .option, input: .middle, action: .fill)
-    static let fillDefault = Self(modifier: .controlOption, input: .middle, action: .fill)
 
     static func addingDefault(_ rule: Self, to rules: [Self]) -> [Self] {
         guard !rules.contains(where: { $0.modifier == rule.modifier && $0.input == rule.input }) else {
@@ -150,6 +149,13 @@ struct BindingRule: Codable, Identifiable, Equatable {
             return replacement
         }
         return addingDefault(optionMiddleFill, to: updated)
+    }
+
+    static func removingRedundantFill(in rules: [Self]) -> [Self] {
+        guard rules.contains(where: { $0.enabled && $0.modifier == .option && $0.input == .middle && $0.action == .fill }) else {
+            return rules
+        }
+        return rules.filter { !($0.modifier == .controlOption && $0.input == .middle && $0.action == .fill) }
     }
 
     static func applying(_ rule: Self, to rules: [Self], replacingConflicts: Bool) -> [Self]? {
@@ -172,7 +178,6 @@ struct BindingRule: Codable, Identifiable, Equatable {
         .init(modifier: .option, input: .left, action: .tileTop),
         .init(modifier: .option, input: .right, action: .tileBottom),
         optionMiddleFill,
-        fillDefault,
         .init(modifier: .controlOption, input: .scrollUp, action: .missionControl, enabled: false),
         .init(modifier: .control, input: .mouse4, action: .spaceRight, enabled: false),
         .init(modifier: .control, input: .mouse5, action: .spaceLeft, enabled: false)

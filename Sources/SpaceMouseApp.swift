@@ -10,11 +10,11 @@ struct SpaceMouseApp: App {
     var body: some Scene {
         Window("SpaceMouse", id: "dashboard") {
             Dashboard(store: store)
-                .frame(minWidth: 490, minHeight: 320)
+                .frame(minWidth: 510, minHeight: 320)
                 .preferredColorScheme(.light)
                 .containerBackground(.clear, for: .window)
         }
-        .defaultSize(width: 548, height: 506)
+        .defaultSize(width: 570, height: 520)
         .restorationBehavior(.disabled)
         .windowStyle(.hiddenTitleBar)
 
@@ -144,8 +144,8 @@ struct Dashboard: View {
                 .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(accent.opacity(0.24)) }
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
-                Text("SpaceMouse").font(.system(size: 17, weight: .semibold)).tracking(-0.25)
-                Text("Shortcuts").font(.system(size: 10, weight: .medium)).foregroundStyle(secondaryInk)
+                Text("SpaceMouse").font(.system(size: 20, weight: .semibold)).tracking(-0.25)
+                Text("Shortcuts").font(.system(size: 12, weight: .medium)).foregroundStyle(secondaryInk)
             }
 
             Spacer(minLength: 4)
@@ -162,9 +162,9 @@ struct Dashboard: View {
                         .accessibilityLabel("Clear search")
                 }
             }
-            .font(.system(size: 11))
+            .font(.system(size: 13))
             .padding(.horizontal, 8)
-            .frame(width: 143, height: 28)
+            .frame(width: 150, height: 30)
             .background(.white.opacity(0.23), in: .rect(cornerRadius: 7))
             .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(.black.opacity(0.12)) }
             .onKeyPress(.escape) {
@@ -229,7 +229,7 @@ struct Dashboard: View {
     private func section(_ group: ShortcutGroup, _ items: [BindingRule]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(group.rawValue)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(secondaryInk)
                 .accessibilityAddTraits(.isHeader)
                 .padding(.horizontal, 10)
@@ -290,7 +290,7 @@ struct Dashboard: View {
                     .foregroundStyle(secondaryInk)
             }
         }
-        .font(.caption)
+        .font(.system(size: 12))
         .padding(.horizontal, 2)
         .frame(minHeight: 17)
     }
@@ -326,7 +326,7 @@ struct Dashboard: View {
                     .keyboardShortcut(.cancelAction)
             }
         }
-        .controlSize(.small)
+        .controlSize(.regular)
         .padding(17)
         .frame(width: 355)
         .glassPanel(radius: 14)
@@ -357,25 +357,25 @@ private struct BindingRow: View {
         Button(action: edit) {
             HStack(spacing: 8) {
                 Image(systemName: rule.action.symbol)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(rule.enabled ? accent : Color.secondary)
                     .frame(width: 21)
                 Text(rule.action.title)
-                    .font(.system(size: 12, weight: rule.enabled ? .medium : .regular))
+                    .font(.system(size: 14, weight: rule.enabled ? .medium : .regular))
                     .foregroundStyle(rule.enabled ? Color.primary : secondaryInk)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: 4) {
                     ForEach(modifierKeys, id: \.self) { key in
                         Text(key)
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
                             .foregroundStyle(rule.enabled ? .primary : .secondary)
-                            .frame(minWidth: 17, minHeight: 16)
+                            .frame(minWidth: 19, minHeight: 18)
                             .background(.white.opacity(0.35), in: .rect(cornerRadius: 4))
                             .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(.black.opacity(0.10)) }
                     }
                     Text(rule.input.title)
-                        .font(.system(size: 11))
+                        .font(.system(size: 13))
                         .foregroundStyle(secondaryInk)
                         .padding(.leading, 2)
                 }
@@ -387,7 +387,7 @@ private struct BindingRow: View {
                     .frame(width: 9)
             }
             .padding(.horizontal, 2)
-            .frame(height: 26)
+            .frame(height: 29)
             .contentShape(.rect)
             .background(hovering ? accent.opacity(0.09) : .clear, in: .rect(cornerRadius: 5))
         }
@@ -467,7 +467,7 @@ private struct ShortcutEditor: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .controlSize(.small)
+        .controlSize(.regular)
         .padding(17)
         .frame(width: 365)
         .glassPanel(radius: 14)
