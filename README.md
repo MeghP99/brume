@@ -11,7 +11,7 @@ Requires macOS 26 or later and the Apple Command Line Tools with a macOS 26+ SDK
 open .build/SpaceMouse.app
 ```
 
-Select **Start shortcuts** and grant SpaceMouse access under **System Settings → Privacy & Security → Accessibility**. Return to SpaceMouse and select **Start shortcuts** again. If the earlier SpaceMouse launch agent is loaded, the app asks before temporarily pausing it. Pausing the app's shortcuts or quitting restores the earlier agent. Closing the app window keeps the app available from the menu bar.
+Select **Enable Accessibility** if macOS has not granted SpaceMouse permission. SpaceMouse activates shortcuts automatically when you return after granting access in **System Settings → Privacy & Security → Accessibility**. If the earlier SpaceMouse launch agent is loaded, SpaceMouse pauses it while the app handles shortcuts. Pausing from the menu bar or quitting restores the earlier agent. Closing the window keeps the app available from the menu bar.
 
 Try the shortcuts while another app has focus. The shortcut editor itself passes through normal mouse input.
 
@@ -45,4 +45,4 @@ The default Control + left-click binding replaces macOS’s context-menu gesture
 ./test.sh
 ```
 
-The tests create Core Graphics mouse events and pass them through the same handler the app uses. They cover each starter binding, mouse releases and drags, wheel-burst timing, optional actions, conflict replacement, and the emitted keyboard event flags. The tests run without Accessibility permission and leave your windows and Spaces alone. To check the live behavior, start shortcuts in the app and try the bindings in another app with a normal resizable window.
+The tests create Core Graphics mouse events and pass them through the same handler the app uses. They cover each starter binding, mouse releases and drags, wheel-burst timing, optional actions, conflict replacement, and the emitted keyboard event flags. The tests run without Accessibility permission and leave your windows and Spaces alone. To check the live behavior, grant Accessibility access and try the bindings in another app with a normal resizable window.

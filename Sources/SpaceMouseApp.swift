@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 
+private let secondaryInk = Color(red: 0.19, green: 0.24, blue: 0.30)
+
 @main
 struct SpaceMouseApp: App {
     @StateObject private var store = ShortcutStore()
@@ -8,11 +10,11 @@ struct SpaceMouseApp: App {
     var body: some Scene {
         Window("SpaceMouse", id: "dashboard") {
             Dashboard(store: store)
-                .frame(minWidth: 490, minHeight: 310)
-                .preferredColorScheme(.dark)
+                .frame(minWidth: 490, minHeight: 320)
+                .preferredColorScheme(.light)
                 .containerBackground(.clear, for: .window)
         }
-        .defaultSize(width: 520, height: 450)
+        .defaultSize(width: 548, height: 506)
         .restorationBehavior(.disabled)
         .windowStyle(.hiddenTitleBar)
 
@@ -28,8 +30,12 @@ private struct MenuBarControls: View {
 
     var body: some View {
         Button("Open SpaceMouse") { showWindow() }
-        Button(store.running ? "Pause shortcuts" : "Set up shortcuts") {
-            if store.running { store.pause() } else { showWindow() }
+        if store.running {
+            Button("Pause shortcuts") { store.pause() }
+        } else if store.paused {
+            Button("Resume shortcuts") { store.resume() }
+        } else if !store.trusted {
+            Button("Enable Accessibility") { showWindow(); store.requestAccess() }
         }
         Divider()
         Button("Quit SpaceMouse") { NSApp.terminate(nil) }
@@ -41,41 +47,66 @@ private struct MenuBarControls: View {
     }
 }
 
+private enum ShortcutGroup: String, CaseIterable, Identifiable {
+    case windows = "Windows", spaces = "Spaces", system = "System"
+    var id: Self { self }
+
+    init(action: ShortcutAction) {
+        switch action {
+        case .spaceRight, .spaceLeft: self = .spaces
+        case .missionControl, .appWindows: self = .system
+        default: self = .windows
+        }
+    }
+}
+
 struct Dashboard: View {
     @ObservedObject var store: ShortcutStore
     @State private var draft: BindingRule?
     @State private var showingSettings = false
     @State private var restoreConfirmation = false
+    @State private var search = ""
+    @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var phase
 
-    private let accent = Color(red: 0.55, green: 0.73, blue: 0.85)
-    private let actionWidth: CGFloat = 143
+    private let accent = Color(red: 0.16, green: 0.39, blue: 0.59)
     private var showingPanel: Bool { draft != nil || showingSettings }
 
+    private var matches: [BindingRule] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return store.rules }
+        return store.rules.filter { rule in
+            [rule.action.title, rule.modifier.title, rule.input.title]
+                .joined(separator: " ")
+                .localizedStandardContains(query)
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             header
             if let message = store.message {
                 Label(message, systemImage: "info.circle")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.regularMaterial, in: .rect(cornerRadius: 8))
+                    .background(.white.opacity(0.45), in: .rect(cornerRadius: 8))
             }
             bindings
+            status
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 15)
         .padding(.top, 6)
-        .padding(.bottom, 12)
+        .padding(.bottom, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .disabled(showingPanel)
         .accessibilityHidden(showingPanel)
-        .blur(radius: showingPanel ? 5 : 0)
+        .blur(radius: showingPanel ? 2 : 0)
         .background { backdrop }
         .overlay {
             if showingPanel {
-                Rectangle().fill(.black.opacity(0.20)).ignoresSafeArea()
+                Rectangle().fill(.white.opacity(0.06)).ignoresSafeArea()
                 if let draft {
                     ShortcutEditor(rule: draft, store: store) { self.draft = nil }
                         .id(draft.id)
@@ -85,12 +116,6 @@ struct Dashboard: View {
             }
         }
         .tint(accent)
-        .alert("Use SpaceMouse for shortcuts?", isPresented: $store.confirmTakeover) {
-            Button("Cancel", role: .cancel) {}
-            Button("Switch to SpaceMouse") { store.takeOver() }
-        } message: {
-            Text("Your previous script will pause while SpaceMouse is active. It will resume when you pause shortcuts or quit the app.")
-        }
         .confirmationDialog("Replace your shortcuts with the starter set?", isPresented: $restoreConfirmation) {
             Button("Restore starter shortcuts", role: .destructive) { store.restoreStarter() }
         }
@@ -101,47 +126,53 @@ struct Dashboard: View {
     private var backdrop: some View {
         ZStack {
             DesktopGlass()
-            LinearGradient(colors: [.black.opacity(0.49), .black.opacity(0.35)],
+            Color.white.opacity(0.18)
+            LinearGradient(colors: [Color(red: 0.75, green: 0.87, blue: 0.98).opacity(0.10), .clear, .white.opacity(0.03)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-            RadialGradient(colors: [Color(red: 0.72, green: 0.87, blue: 1).opacity(0.22), .clear],
-                           center: .topLeading, startRadius: 0, endRadius: 520)
-            RadialGradient(colors: [Color(red: 0.32, green: 0.60, blue: 0.86).opacity(0.16), .clear],
-                           center: .bottomTrailing, startRadius: 0, endRadius: 480)
-            FrostDust()
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "computermouse.fill")
-                .font(.system(size: 12, weight: .semibold))
+        HStack(spacing: 9) {
+            Image(systemName: "rectangle.split.2x1")
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(accent)
-                .frame(width: 24, height: 24)
-                .glassPanel(radius: 7)
+                .frame(width: 31, height: 31)
+                .background(accent.opacity(0.13), in: .rect(cornerRadius: 8))
+                .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(accent.opacity(0.24)) }
                 .accessibilityHidden(true)
-            Text("SpaceMouse").font(.system(size: 14, weight: .semibold))
-            HStack(spacing: 5) {
-                Circle().fill(store.running ? .green : store.legacyActive ? accent : .secondary.opacity(0.65))
-                    .frame(width: 5, height: 5)
-                    .accessibilityHidden(true)
-                Text(store.running ? "Active" : store.legacyActive ? "Previous script active" : "Paused")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("SpaceMouse").font(.system(size: 17, weight: .semibold)).tracking(-0.25)
+                Text("Shortcuts").font(.system(size: 10, weight: .medium)).foregroundStyle(secondaryInk)
             }
-            .padding(.horizontal, 6)
 
-            Spacer(minLength: 0)
-            Button {
-                if store.running { store.pause() } else { store.start() }
-            } label: {
-                Label(store.running ? "Pause" : "Start",
-                      systemImage: store.running ? "pause.fill" : "play.fill")
+            Spacer(minLength: 4)
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(secondaryInk).accessibilityHidden(true)
+                TextField("Find a shortcut", text: $search)
+                    .textFieldStyle(.plain)
+                    .focused($searchFocused)
+                    .accessibilityLabel("Find a shortcut")
+                if !search.isEmpty {
+                    Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(secondaryInk)
+                        .accessibilityLabel("Clear search")
+                }
             }
-            .buttonStyle(.glass)
-            .help(store.running ? "Pause shortcuts" : "Start shortcuts")
-            .accessibilityLabel(store.running ? "Pause shortcuts" : "Start shortcuts")
+            .font(.system(size: 11))
+            .padding(.horizontal, 8)
+            .frame(width: 143, height: 28)
+            .background(.white.opacity(0.23), in: .rect(cornerRadius: 7))
+            .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(.black.opacity(0.12)) }
+            .onKeyPress(.escape) {
+                guard searchFocused else { return .ignored }
+                search = ""
+                searchFocused = false
+                return .handled
+            }
 
             Button {
                 draft = BindingRule(modifier: .control, input: .mouse4, action: .missionControl)
@@ -153,88 +184,72 @@ struct Dashboard: View {
             .accessibilityLabel("Add shortcut")
             .keyboardShortcut("n", modifiers: .command)
 
-            Button {
-                showingSettings = true
-            } label: {
-                Image(systemName: "gearshape")
-            }
-            .buttonStyle(.glass)
-            .help("Settings")
-            .accessibilityLabel("Settings")
-            .keyboardShortcut(",", modifiers: .command)
+            Button { showingSettings = true } label: { Image(systemName: "gearshape") }
+                .buttonStyle(.glass)
+                .help("Settings")
+                .accessibilityLabel("Settings")
+                .keyboardShortcut(",", modifiers: .command)
         }
         .controlSize(.small)
-        .padding(.horizontal, 3)
     }
 
     private var bindings: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 9) {
-                Text("Action").frame(width: actionWidth, alignment: .leading)
-                Text("Gesture").frame(maxWidth: .infinity, alignment: .leading)
-                Text("On").frame(width: 34)
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 10)
-            .frame(height: 23)
-            .accessibilityHidden(true)
-
-            Divider()
-            if store.rules.isEmpty {
-                Text("No shortcuts yet. Click Add to create one.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        let rules = matches
+        return Group {
+            if rules.isEmpty {
+                ContentUnavailableView(
+                    store.rules.isEmpty ? "No shortcuts" : "No matches",
+                    systemImage: store.rules.isEmpty ? "computermouse" : "magnifyingglass",
+                    description: Text(store.rules.isEmpty ? "Use Add to create a shortcut." : "Try a different action or mouse input.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(store.rules) { rule in
-                            bindingRow(rule)
-                            if rule.id != store.rules.last?.id { Divider().padding(.leading, 37) }
+                        ForEach(ShortcutGroup.allCases) { group in
+                            let items = rules.filter { ShortcutGroup(action: $0.action) == group }
+                            if !items.isEmpty {
+                                section(group, items)
+                            }
                         }
                     }
+                    .padding(.bottom, 4)
                 }
             }
         }
-        .clipShape(.rect(cornerRadius: 12))
-        .glassPanel(radius: 12)
+        .clipShape(.rect(cornerRadius: 10))
+        .background(.white.opacity(0.29), in: .rect(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(.white.opacity(0.53))
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func section(_ group: ShortcutGroup, _ items: [BindingRule]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(group.rawValue)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(secondaryInk)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+            ForEach(items) { rule in
+                bindingRow(rule)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func bindingRow(_ rule: BindingRule) -> some View {
         HStack(spacing: 9) {
-            Button { draft = rule } label: {
-                HStack(spacing: 9) {
-                    HStack(spacing: 7) {
-                        Image(systemName: rule.action.symbol)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(rule.enabled ? accent : Color.secondary)
-                            .frame(width: 20, height: 20)
-                            .background(accent.opacity(rule.enabled ? 0.12 : 0.05), in: .rect(cornerRadius: 5))
-                        Text(rule.action.title)
-                            .font(.system(size: 12, weight: .medium))
-                            .lineLimit(1)
-                    }
-                    .frame(width: actionWidth, alignment: .leading)
-
-                    Text("\(rule.modifier.title) + \(rule.input.title)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(minHeight: 27)
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .help("Edit \(rule.action.title)")
-            .accessibilityLabel("Edit \(rule.action.title), \(rule.modifier.title), \(rule.input.title)")
+            BindingRow(rule: rule, accent: accent) { draft = rule }
 
             if !rule.enabled, let owner = store.rules.first(where: { $0.enabled && rule.sharesGesture(with: $0) }) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption2)
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(.orange)
                     .help("This gesture is in use by \(owner.action.title)")
                     .accessibilityLabel("Gesture in use by \(owner.action.title)")
             }
@@ -251,19 +266,43 @@ struct Dashboard: View {
             .labelsHidden()
             .toggleStyle(.switch)
             .controlSize(.mini)
-            .frame(width: 34)
+            .frame(width: 32)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
+    }
+
+    private var status: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(store.running ? Color.green : store.legacyActive ? accent : Color.secondary)
+                .frame(width: 5, height: 5)
+                .accessibilityHidden(true)
+            Text(store.running ? "Shortcuts active" : store.legacyActive ? "Previous script active" : store.paused ? "Paused" : "Shortcuts inactive")
+                .foregroundStyle(secondaryInk)
+            Spacer()
+            if !store.trusted {
+                Button("Enable Accessibility") { store.requestAccess() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(accent)
+            } else {
+                Text("\(store.rules.filter(\.enabled).count) enabled")
+                    .monospacedDigit()
+                    .foregroundStyle(secondaryInk)
+            }
+        }
+        .font(.caption)
+        .padding(.horizontal, 2)
+        .frame(minHeight: 17)
     }
 
     private var settings: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 13) {
             Text("Settings").font(.headline)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Scroll pause").font(.callout.weight(.medium))
                     Spacer()
-                    Text("\(Int(store.scrollGap * 1000)) ms").monospacedDigit().foregroundStyle(.secondary)
+                    Text("\(Int(store.scrollGap * 1000)) ms").monospacedDigit().foregroundStyle(secondaryInk)
                 }
                 Slider(value: $store.scrollGap, in: 0.15 ... 0.9, step: 0.05) { Text("Scroll pause") }
                     .labelsHidden()
@@ -288,11 +327,74 @@ struct Dashboard: View {
             }
         }
         .controlSize(.small)
-        .padding(16)
+        .padding(17)
         .frame(width: 355)
-        .glassPanel(radius: 16)
-        .shadow(color: .black.opacity(0.30), radius: 18, y: 8)
+        .glassPanel(radius: 14)
+        .shadow(color: .black.opacity(0.40), radius: 18, y: 8)
         .accessibilityAddTraits(.isModal)
+    }
+}
+
+private struct BindingRow: View {
+    let rule: BindingRule
+    let accent: Color
+    let edit: () -> Void
+    @State private var hovering = false
+
+    private var modifierKeys: [String] {
+        switch rule.modifier {
+        case .control: ["⌃"]
+        case .option: ["⌥"]
+        case .command: ["⌘"]
+        case .shift: ["⇧"]
+        case .controlOption: ["⌃", "⌥"]
+        case .controlShift: ["⌃", "⇧"]
+        case .fn: ["Fn"]
+        }
+    }
+
+    var body: some View {
+        Button(action: edit) {
+            HStack(spacing: 8) {
+                Image(systemName: rule.action.symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(rule.enabled ? accent : Color.secondary)
+                    .frame(width: 21)
+                Text(rule.action.title)
+                    .font(.system(size: 12, weight: rule.enabled ? .medium : .regular))
+                    .foregroundStyle(rule.enabled ? Color.primary : secondaryInk)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 4) {
+                    ForEach(modifierKeys, id: \.self) { key in
+                        Text(key)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(rule.enabled ? .primary : .secondary)
+                            .frame(minWidth: 17, minHeight: 16)
+                            .background(.white.opacity(0.35), in: .rect(cornerRadius: 4))
+                            .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(.black.opacity(0.10)) }
+                    }
+                    Text(rule.input.title)
+                        .font(.system(size: 11))
+                        .foregroundStyle(secondaryInk)
+                        .padding(.leading, 2)
+                }
+                .frame(width: 139, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(secondaryInk)
+                    .opacity(hovering ? 1 : 0)
+                    .frame(width: 9)
+            }
+            .padding(.horizontal, 2)
+            .frame(height: 26)
+            .contentShape(.rect)
+            .background(hovering ? accent.opacity(0.09) : .clear, in: .rect(cornerRadius: 5))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Edit \(rule.action.title)")
+        .accessibilityLabel("Edit \(rule.action.title), \(rule.modifier.title), \(rule.input.title)")
     }
 }
 
@@ -309,21 +411,21 @@ private struct ShortcutEditor: View {
             Text(existing ? "Edit shortcut" : "Add shortcut").font(.headline)
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                 GridRow {
-                    Text("Modifier").foregroundStyle(.secondary)
+                    Text("Modifier").foregroundStyle(secondaryInk)
                     Picker("Modifier", selection: $rule.modifier) {
                         ForEach(Modifier.allCases) { Text($0.title).tag($0) }
                     }
                     .labelsHidden()
                 }
                 GridRow {
-                    Text("Mouse input").foregroundStyle(.secondary)
+                    Text("Mouse input").foregroundStyle(secondaryInk)
                     Picker("Mouse input", selection: $rule.input) {
                         ForEach(MouseInput.allCases) { Text($0.title).tag($0) }
                     }
                     .labelsHidden()
                 }
                 GridRow {
-                    Text("Action").foregroundStyle(.secondary)
+                    Text("Action").foregroundStyle(secondaryInk)
                     Picker("Action", selection: $rule.action) {
                         ForEach(ShortcutAction.allCases) { Text($0.title).tag($0) }
                     }
@@ -340,10 +442,10 @@ private struct ShortcutEditor: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Shortcut already in use").font(.callout.weight(.semibold))
                         Text("Replacing it removes “\(conflict.action.title)” from your bindings.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(secondaryInk)
                     }
                 } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -368,7 +470,7 @@ private struct ShortcutEditor: View {
         .controlSize(.small)
         .padding(17)
         .frame(width: 365)
-        .glassPanel(radius: 17)
+        .glassPanel(radius: 14)
         .shadow(color: .black.opacity(0.30), radius: 22, y: 10)
         .accessibilityAddTraits(.isModal)
     }
@@ -384,42 +486,25 @@ private extension View {
         }
         .overlay {
             RoundedRectangle(cornerRadius: radius)
-                .strokeBorder(LinearGradient(colors: [.white.opacity(0.34), .white.opacity(0.06), .white.opacity(0.15)],
+                .strokeBorder(LinearGradient(colors: [.white.opacity(0.92), .white.opacity(0.38), .white.opacity(0.65)],
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
                 .allowsHitTesting(false)
         }
     }
 }
 
-private struct FrostDust: View {
-    var body: some View {
-        Canvas { context, size in
-            let ice = Color(red: 0.83, green: 0.93, blue: 1)
-            for index in 0..<50 {
-                let x = CGFloat((index * 73 + 31) % 997) / 997
-                let y = CGFloat((index * 97 + 17) % 659) / 659
-                let diameter: CGFloat = index.isMultiple(of: 9) ? 2.4 : 1.4
-                let brightness = 0.08 + Double(index % 5) * 0.025
-                let flake = CGRect(x: x * size.width, y: y * size.height, width: diameter, height: diameter)
-                context.fill(Path(ellipseIn: flake), with: .color(ice.opacity(brightness)))
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 private struct DesktopGlass: NSViewRepresentable {
     func makeNSView(context: Context) -> GlassBackdrop {
         let view = GlassBackdrop()
-        view.material = .hudWindow
+        view.material = .windowBackground
         view.blendingMode = .behindWindow
         view.state = .active
-        view.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.58
+        view.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.23
         return view
     }
 
     func updateNSView(_ view: GlassBackdrop, context: Context) {
-        view.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.58
+        view.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.23
     }
 
     final class GlassBackdrop: NSVisualEffectView {

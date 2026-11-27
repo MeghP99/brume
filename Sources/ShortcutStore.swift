@@ -7,7 +7,7 @@ final class ShortcutStore: ObservableObject {
     @Published private(set) var legacyActive = false
     @Published private(set) var trusted = ShortcutEngine.trusted
     @Published var message: String?
-    @Published var confirmTakeover = false
+    @Published private(set) var paused = false
     @Published var scrollGap: Double {
         didSet { defaults.set(scrollGap, forKey: "scrollGap"); engine.scrollGap = scrollGap }
     }
@@ -15,7 +15,10 @@ final class ShortcutStore: ObservableObject {
     private let engine = ShortcutEngine()
     private let defaults = UserDefaults.standard
     private let legacy = LegacyAgent()
-    private var restoreLegacy = false
+    private var restoreLegacy: Bool {
+        get { defaults.bool(forKey: "restoreLegacyAgent") }
+        set { defaults.set(newValue, forKey: "restoreLegacyAgent") }
+    }
     private var observer: NSObjectProtocol?
 
     init() {
@@ -35,6 +38,7 @@ final class ShortcutStore: ObservableObject {
         }
         defaults.set(3, forKey: "bindingPresetVersion")
         scrollGap = defaults.object(forKey: "scrollGap") as? Double ?? 0.45
+        paused = defaults.bool(forKey: "shortcutsPaused")
         engine.rules = rules
         engine.scrollGap = scrollGap
         engine.onAction = { [weak self] action, success in
@@ -42,45 +46,56 @@ final class ShortcutStore: ObservableObject {
         }
         observer = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.pause() }
+        ) { [weak self] _ in self?.deactivate() }
     }
 
     func refreshPermission() {
         trusted = ShortcutEngine.trusted
-        legacyActive = legacy.isRunning
-        if running && !trusted {
-            pause()
-            message = "Accessibility access was removed. Enable it to resume shortcuts."
+        if paused || !trusted {
+            let lostAccess = running && !trusted
+            if running || restoreLegacy { deactivate() }
+            legacyActive = legacy.isRunning
+            if lostAccess { message = "Accessibility access was removed." }
+            return
         }
-    }
+        guard !running else { return }
 
-    func start() {
-        refreshPermission()
-        guard trusted else {
-            ShortcutEngine.requestPermission()
-            message = "Allow SpaceMouse in Privacy & Security → Accessibility, then click Start shortcuts."
+        legacyActive = legacy.isRunning
+        guard engine.start() else {
+            message = "macOS couldn’t start the shortcut listener. Check Accessibility access."
             return
         }
         if legacyActive {
-            confirmTakeover = true
-        } else {
-            activate()
-        }
-    }
-
-    func takeOver() {
-        if legacy.isRunning {
             guard legacy.stop() else {
+                engine.stop()
                 message = "The previous SpaceMouse script couldn’t be paused."
                 return
             }
             restoreLegacy = true
             legacyActive = false
         }
-        activate()
+        running = true
+        message = nil
+    }
+
+    func requestAccess() {
+        refreshPermission()
+        if !trusted { ShortcutEngine.requestPermission() }
+    }
+
+    func resume() {
+        paused = false
+        defaults.set(false, forKey: "shortcutsPaused")
+        requestAccess()
     }
 
     func pause() {
+        paused = true
+        defaults.set(true, forKey: "shortcutsPaused")
+        deactivate()
+    }
+
+    private func deactivate() {
         engine.stop()
         running = false
         if restoreLegacy {
@@ -90,16 +105,6 @@ final class ShortcutStore: ObservableObject {
             } else {
                 message = "The previous SpaceMouse script couldn’t be resumed."
             }
-        }
-    }
-
-    private func activate() {
-        running = engine.start()
-        if running {
-            message = nil
-        } else {
-            pause()
-            message = "macOS couldn't start the shortcut listener. Check Accessibility access."
         }
     }
 
