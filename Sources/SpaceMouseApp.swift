@@ -166,9 +166,10 @@ struct Dashboard: View {
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 7) {
                     Circle().fill(store.running ? .green : Color.secondary.opacity(0.5)).frame(width: 7, height: 7)
-                    Text(store.running ? "Shortcuts active" : "Shortcuts paused").font(.system(size: 12, weight: .semibold))
+                    Text(store.running ? "Shortcuts active" : store.legacyActive ? "Previous script active" : "Shortcuts paused")
+                        .font(.system(size: 12, weight: .semibold))
                 }
-                Text(store.running ? "Available from any other app." : "Start shortcuts to use this setup.")
+                Text(store.running ? "Available from any other app." : "Select Start shortcuts to use these bindings.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -271,10 +272,22 @@ struct Dashboard: View {
             .buttonStyle(.plain)
             .accessibilityLabel("\(rule.action.title), \(rule.modifier.title), \(rule.input.title)")
 
+            if !rule.enabled, let owner = store.rules.first(where: { $0.enabled && rule.sharesGesture(with: $0) }) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.yellow)
+                    .help("This gesture is in use by \(owner.action.title)")
+                    .accessibilityLabel("Gesture in use by \(owner.action.title)")
+            }
+
             Toggle(isOn: Binding(get: { rule.enabled }, set: { enabled in
                 var edited = rule
                 edited.enabled = enabled
-                store.save(edited)
+                if store.conflict(for: edited) != nil {
+                    draft = edited
+                } else {
+                    store.save(edited)
+                }
             })) { Text("Enable \(rule.action.title)") }
             .labelsHidden().toggleStyle(.switch).controlSize(.mini)
 
@@ -406,7 +419,7 @@ private struct ShortcutEditor: View {
     let onDismiss: () -> Void
 
     private var existing: Bool { store.rules.contains { $0.id == rule.id } }
-    private var conflict: Bool { store.rules.contains { rule.conflicts(with: $0) } }
+    private var conflict: BindingRule? { store.conflict(for: rule) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 19) {
@@ -439,9 +452,19 @@ private struct ShortcutEditor: View {
                 }
             }
             .pickerStyle(.menu)
-            if conflict {
-                Label("That combination is already enabled.", systemImage: "exclamationmark.circle")
-                    .font(.caption).foregroundStyle(.red)
+            if let conflict {
+                Label {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Shortcut already in use").font(.callout.weight(.semibold))
+                        Text("Replacing it removes “\(conflict.action.title)” from your bindings.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.yellow.opacity(0.08), in: .rect(cornerRadius: 9))
             }
             HStack {
                 if existing {
@@ -451,13 +474,12 @@ private struct ShortcutEditor: View {
                 Button("Cancel", role: .cancel) { onDismiss() }
                     .buttonStyle(.glass)
                     .keyboardShortcut(.cancelAction)
-                Button("Save") {
-                    store.save(rule)
+                Button(conflict == nil ? "Save" : "Replace shortcut") {
+                    store.save(rule, replacingConflicts: conflict != nil)
                     onSave(rule)
                 }
                 .buttonStyle(.glassProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(conflict)
             }
         }
         .padding(25)

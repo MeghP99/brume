@@ -4,6 +4,7 @@ import Combine
 final class ShortcutStore: ObservableObject {
     @Published private(set) var rules: [BindingRule]
     @Published private(set) var running = false
+    @Published private(set) var legacyActive = false
     @Published private(set) var trusted = ShortcutEngine.trusted
     @Published var message: String?
     @Published var confirmTakeover = false
@@ -18,8 +19,16 @@ final class ShortcutStore: ObservableObject {
     private var observer: NSObjectProtocol?
 
     init() {
-        rules = defaults.data(forKey: "bindings")
-            .flatMap { try? JSONDecoder().decode([BindingRule].self, from: $0) } ?? BindingRule.starter
+        let saved = defaults.data(forKey: "bindings")
+            .flatMap { try? JSONDecoder().decode([BindingRule].self, from: $0) }
+        if let saved, defaults.integer(forKey: "bindingPresetVersion") < 1 {
+            let migrated = BindingRule.addingCenterDefault(to: saved)
+            rules = migrated
+            if let data = try? JSONEncoder().encode(migrated) { defaults.set(data, forKey: "bindings") }
+        } else {
+            rules = saved ?? BindingRule.starter
+        }
+        defaults.set(1, forKey: "bindingPresetVersion")
         scrollGap = defaults.object(forKey: "scrollGap") as? Double ?? 0.45
         engine.rules = rules
         engine.scrollGap = scrollGap
@@ -33,6 +42,7 @@ final class ShortcutStore: ObservableObject {
 
     func refreshPermission() {
         trusted = ShortcutEngine.trusted
+        legacyActive = legacy.isRunning
         if running && !trusted {
             pause()
             message = "Accessibility access was removed. Enable it to resume shortcuts."
@@ -46,7 +56,7 @@ final class ShortcutStore: ObservableObject {
             message = "Allow SpaceMouse in Privacy & Security → Accessibility, then click Start shortcuts."
             return
         }
-        if legacy.isRunning {
+        if legacyActive {
             confirmTakeover = true
         } else {
             activate()
@@ -60,6 +70,7 @@ final class ShortcutStore: ObservableObject {
                 return
             }
             restoreLegacy = true
+            legacyActive = false
         }
         activate()
     }
@@ -70,6 +81,7 @@ final class ShortcutStore: ObservableObject {
         if restoreLegacy {
             if legacy.start() {
                 restoreLegacy = false
+                legacyActive = true
             } else {
                 message = "The previous SpaceMouse script couldn’t be resumed."
             }
@@ -86,16 +98,14 @@ final class ShortcutStore: ObservableObject {
         }
     }
 
-    func save(_ rule: BindingRule) {
-        guard !rules.contains(where: { rule.conflicts(with: $0) }) else {
+    func conflict(for rule: BindingRule) -> BindingRule? {
+        rules.first(where: rule.conflicts(with:))
+    }
+
+    func save(_ rule: BindingRule, replacingConflicts: Bool = false) {
+        guard let updated = BindingRule.applying(rule, to: rules, replacingConflicts: replacingConflicts) else {
             message = "Another enabled shortcut uses that combination."
             return
-        }
-        var updated = rules
-        if let index = updated.firstIndex(where: { $0.id == rule.id }) {
-            updated[index] = rule
-        } else {
-            updated.append(rule)
         }
         update(updated)
     }

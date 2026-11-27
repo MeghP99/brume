@@ -1,6 +1,12 @@
 import AppKit
 import ApplicationServices
 
+enum EventRouting: Equatable {
+    case pass
+    case swallow
+    case run(ShortcutAction, target: pid_t)
+}
+
 final class ShortcutEngine {
     var rules = BindingRule.starter
     var scrollGap = 0.45
@@ -54,51 +60,64 @@ final class ShortcutEngine {
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             captured.removeAll()
+            lastScroll = nil
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return false
         }
-        let now = ProcessInfo.processInfo.systemUptime
-        guard let input = mouseInput(type, event) else { return false }
+        switch route(type, event, target: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                     at: ProcessInfo.processInfo.systemUptime) {
+        case .pass: return false
+        case .swallow: return true
+        case let .run(action, target):
+            if let key = action.key {
+                let events = keyEvents(for: key)
+                for event in events { event.post(tap: .cghidEventTap) }
+                DispatchQueue.main.async { [weak self] in self?.onAction?(action, events.count == 2) }
+            } else {
+                actionQueue.async { [weak self] in
+                    let success = WindowAction.perform(action, pid: target)
+                    DispatchQueue.main.async { self?.onAction?(action, success) }
+                }
+            }
+            return true
+        }
+    }
+
+    func route(_ type: CGEventType, _ event: CGEvent, target: @autoclosure () -> pid_t?, at now: Double) -> EventRouting {
+        guard let input = mouseInput(type, event) else { return .pass }
         switch type {
         case .leftMouseUp, .rightMouseUp, .otherMouseUp:
-            return captured.remove(input) != nil
+            return captured.remove(input) == nil ? .pass : .swallow
         case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
-            return captured.contains(input)
+            return captured.contains(input) ? .swallow : .pass
         default: break
         }
 
-        let modifier = Modifier.matching(event.flags)
-        // Keep the shortcut editor usable while the app has focus.
-        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        guard pid != ProcessInfo.processInfo.processIdentifier, let modifier,
-              let rule = rules.first(where: { $0.enabled && $0.input == input && $0.modifier == modifier }) else {
+        // The editor receives normal mouse input while SpaceMouse has focus.
+        guard let modifier = Modifier.matching(event.flags),
+              let rule = rules.first(where: { $0.enabled && $0.input == input && $0.modifier == modifier }),
+              let target = target(), target != ProcessInfo.processInfo.processIdentifier else {
             if type == .scrollWheel { lastScroll = nil }
-            return false
+            return .pass
         }
 
         if type == .scrollWheel {
             let previous = lastScroll
             lastScroll = (input, modifier, now)
             if let previous, previous.input == input, previous.modifier == modifier,
-               now - previous.time < scrollGap { return true }
+               now - previous.time < scrollGap { return .swallow }
         } else {
             captured.insert(input)
         }
+        return .run(rule.action, target: target)
+    }
 
-        if let key = rule.action.key {
-            for down in [true, false] {
-                let keyEvent = CGEvent(keyboardEventSource: keyboardSource, virtualKey: key, keyDown: down)
-                keyEvent?.flags = [.maskControl, .maskSecondaryFn, .maskNumericPad]
-                keyEvent?.post(tap: .cghidEventTap)
-            }
-            DispatchQueue.main.async { [weak self] in self?.onAction?(rule.action, true) }
-        } else if let pid {
-            actionQueue.async { [weak self] in
-                let success = WindowAction.perform(rule.action, pid: pid)
-                DispatchQueue.main.async { self?.onAction?(rule.action, success) }
-            }
+    func keyEvents(for key: CGKeyCode) -> [CGEvent] {
+        [true, false].compactMap { down in
+            let event = CGEvent(keyboardEventSource: keyboardSource, virtualKey: key, keyDown: down)
+            event?.flags = [.maskControl, .maskSecondaryFn, .maskNumericPad]
+            return event
         }
-        return true
     }
 
     private func mouseInput(_ type: CGEventType, _ event: CGEvent) -> MouseInput? {
@@ -150,12 +169,17 @@ enum WindowAction {
             return AXUIElementSetAttributeValue(window, "AXFullScreen" as CFString,
                                                  fullScreen ? kCFBooleanFalse : kCFBooleanTrue) == .success
         }
-        guard let title = action.menuTitle else { return false }
-        let window = child(element(app, kAXMenuBarAttribute), named: "Window")
-        let resize = child(children(window).first, named: "Move & Resize")
-        let menu = children(resize).first
-        let item = child(menu, named: title) ?? (title == "Center" ? child(menu, named: "Centre") : nil)
-        guard let item else { return false }
+        guard let item = menuItem(action, in: app) else { return false }
         return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
+    }
+
+    static func menuItem(_ action: ShortcutAction, in app: AXUIElement) -> AXUIElement? {
+        guard let title = action.menuTitle else { return nil }
+        let window = child(element(app, kAXMenuBarAttribute), named: "Window")
+        let windowMenu = children(window).first
+        let resize = child(windowMenu, named: "Move & Resize")
+        let resizeMenu = children(resize).first
+        return child(windowMenu, named: title) ?? child(resizeMenu, named: title)
+            ?? (title == "Center" ? child(windowMenu, named: "Centre") ?? child(resizeMenu, named: "Centre") : nil)
     }
 }

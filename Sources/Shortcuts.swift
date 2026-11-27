@@ -125,7 +125,31 @@ struct BindingRule: Codable, Identifiable, Equatable {
     var enabled = true
 
     func conflicts(with other: Self) -> Bool {
-        id != other.id && enabled && other.enabled && input == other.input && modifier == other.modifier
+        enabled && other.enabled && sharesGesture(with: other)
+    }
+
+    func sharesGesture(with other: Self) -> Bool {
+        id != other.id && input == other.input && modifier == other.modifier
+    }
+
+    static let centerDefault = Self(modifier: .option, input: .middle, action: .center)
+
+    static func addingCenterDefault(to rules: [Self]) -> [Self] {
+        guard !rules.contains(where: { $0.sharesGesture(with: centerDefault) || $0.id == centerDefault.id }) else {
+            return rules
+        }
+        return rules + [centerDefault]
+    }
+
+    static func applying(_ rule: Self, to rules: [Self], replacingConflicts: Bool) -> [Self]? {
+        guard replacingConflicts || !rules.contains(where: rule.conflicts(with:)) else { return nil }
+        var updated = rules.filter { !rule.conflicts(with: $0) }
+        if let index = updated.firstIndex(where: { $0.id == rule.id }) {
+            updated[index] = rule
+        } else {
+            updated.append(rule)
+        }
+        return updated
     }
 
     static let starter: [Self] = [
@@ -136,6 +160,7 @@ struct BindingRule: Codable, Identifiable, Equatable {
         .init(modifier: .control, input: .middle, action: .fullScreen),
         .init(modifier: .option, input: .left, action: .tileTop),
         .init(modifier: .option, input: .right, action: .tileBottom),
+        centerDefault,
         .init(modifier: .controlOption, input: .scrollUp, action: .missionControl, enabled: false),
         .init(modifier: .control, input: .mouse4, action: .spaceRight, enabled: false),
         .init(modifier: .control, input: .mouse5, action: .spaceLeft, enabled: false)
