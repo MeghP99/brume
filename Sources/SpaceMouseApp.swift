@@ -8,11 +8,12 @@ struct SpaceMouseApp: App {
     var body: some Scene {
         Window("SpaceMouse", id: "dashboard") {
             Dashboard(store: store)
-                .frame(minWidth: 920, minHeight: 640)
+                .frame(minWidth: 490, minHeight: 310)
                 .preferredColorScheme(.dark)
                 .containerBackground(.clear, for: .window)
         }
-        .defaultSize(width: 1020, height: 720)
+        .defaultSize(width: 520, height: 450)
+        .restorationBehavior(.disabled)
         .windowStyle(.hiddenTitleBar)
 
         MenuBarExtra("SpaceMouse", systemImage: "computermouse") {
@@ -40,64 +41,47 @@ private struct MenuBarControls: View {
     }
 }
 
-private enum Page: String, CaseIterable {
-    case shortcuts = "Shortcuts", settings = "Settings"
-    var icon: String { self == .shortcuts ? "square.grid.2x2" : "slider.horizontal.3" }
-}
-
 struct Dashboard: View {
     @ObservedObject var store: ShortcutStore
-    @State private var page: Page = .shortcuts
     @State private var draft: BindingRule?
-    @State private var selectedID: UUID?
+    @State private var showingSettings = false
     @State private var restoreConfirmation = false
     @Environment(\.scenePhase) private var phase
 
     private let accent = Color(red: 0.55, green: 0.73, blue: 0.85)
+    private let actionWidth: CGFloat = 143
+    private var showingPanel: Bool { draft != nil || showingSettings }
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar.frame(width: 192)
-                .padding(.leading, 15)
-                .padding(.top, 44)
-                .padding(.bottom, 15)
-            VStack(alignment: .leading, spacing: 20) {
-                header
-                if let message = store.message {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "info.circle")
-                        Text(message).fixedSize(horizontal: false, vertical: true)
-                    }
-                    .font(.callout)
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            if let message = store.message {
+                Label(message, systemImage: "info.circle")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(12)
+                    .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.regularMaterial, in: .rect(cornerRadius: 13))
-                }
-                switch page {
-                case .shortcuts: shortcuts
-                case .settings: settings
-                }
+                    .background(.regularMaterial, in: .rect(cornerRadius: 8))
             }
-            .padding(.horizontal, 27)
-            .padding(.top, 29)
-            .padding(.bottom, 24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            bindings
         }
-        .disabled(draft != nil)
-        .accessibilityHidden(draft != nil)
-        .blur(radius: draft == nil ? 0 : 5)
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .disabled(showingPanel)
+        .accessibilityHidden(showingPanel)
+        .blur(radius: showingPanel ? 5 : 0)
         .background { backdrop }
         .overlay {
-            if let draft {
+            if showingPanel {
                 Rectangle().fill(.black.opacity(0.20)).ignoresSafeArea()
-                ShortcutEditor(rule: draft, store: store, onSave: { saved in
-                    selectedID = saved.id
-                    self.draft = nil
-                }, onDismiss: {
-                    self.draft = nil
-                })
-                .id(draft.id)
+                if let draft {
+                    ShortcutEditor(rule: draft, store: store) { self.draft = nil }
+                        .id(draft.id)
+                } else {
+                    settings
+                }
             }
         }
         .tint(accent)
@@ -129,152 +113,127 @@ struct Dashboard: View {
         .ignoresSafeArea()
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            HStack(spacing: 10) {
-                Image(systemName: "computermouse.fill")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(
-                        LinearGradient(colors: [Color(red: 0.55, green: 0.69, blue: 0.80),
-                                                Color(red: 0.20, green: 0.34, blue: 0.46)],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: .rect(cornerRadius: 11)
-                    )
-                    .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(.white.opacity(0.38)) }
-                Text("SpaceMouse").font(.system(size: 16, weight: .semibold))
-            }
-            .padding(.top, 18)
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Page.allCases, id: \.self) { option in
-                    Button { page = option } label: {
-                        Label(option.rawValue, systemImage: option.icon)
-                            .font(.system(size: 13, weight: page == option ? .semibold : .medium))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 11)
-                            .contentShape(.rect)
-                            .background(page == option ? Color.white.opacity(0.16) : .clear,
-                                        in: .rect(cornerRadius: 10))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(page == option ? .isSelected : [])
-                }
-            }
-            Spacer()
-            VStack(alignment: .leading, spacing: 9) {
-                HStack(spacing: 7) {
-                    Circle().fill(store.running ? .green : Color.secondary.opacity(0.5)).frame(width: 7, height: 7)
-                    Text(store.running ? "Shortcuts active" : store.legacyActive ? "Previous script active" : "Shortcuts paused")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                Text(store.running ? "Available from any other app." : "Select Start shortcuts to use these bindings.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(13)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .glassPanel(radius: 15)
-        }
-        .padding(.horizontal, 13)
-        .padding(.bottom, 13)
-        .glassPanel(radius: 22)
-    }
-
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(page.rawValue).font(.system(size: 34, weight: .semibold, design: .default)).tracking(-1.2)
-                Text(page == .shortcuts ? "Map mouse gestures to windows and Spaces." : "Set scroll timing and manage Accessibility access.")
-                    .font(.callout).foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            Image(systemName: "computermouse.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(accent)
+                .frame(width: 24, height: 24)
+                .glassPanel(radius: 7)
+                .accessibilityHidden(true)
+            Text("SpaceMouse").font(.system(size: 14, weight: .semibold))
+            HStack(spacing: 5) {
+                Circle().fill(store.running ? .green : store.legacyActive ? accent : .secondary.opacity(0.65))
+                    .frame(width: 5, height: 5)
+                    .accessibilityHidden(true)
+                Text(store.running ? "Active" : store.legacyActive ? "Previous script active" : "Paused")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Spacer(minLength: 8)
+            .padding(.horizontal, 6)
+
+            Spacer(minLength: 0)
             Button {
                 if store.running { store.pause() } else { store.start() }
             } label: {
-                Label(store.running ? "Pause shortcuts" : "Start shortcuts",
+                Label(store.running ? "Pause" : "Start",
                       systemImage: store.running ? "pause.fill" : "play.fill")
             }
+            .buttonStyle(.glass)
+            .help(store.running ? "Pause shortcuts" : "Start shortcuts")
+            .accessibilityLabel(store.running ? "Pause shortcuts" : "Start shortcuts")
+
+            Button {
+                draft = BindingRule(modifier: .control, input: .mouse4, action: .missionControl)
+            } label: {
+                Label("Add", systemImage: "plus")
+            }
             .buttonStyle(.glassProminent)
-            .tint(accent)
-            .controlSize(.large)
+            .help("Add shortcut")
+            .accessibilityLabel("Add shortcut")
+            .keyboardShortcut("n", modifiers: .command)
+
+            Button {
+                showingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.glass)
+            .help("Settings")
+            .accessibilityLabel("Settings")
+            .keyboardShortcut(",", modifiers: .command)
         }
+        .controlSize(.small)
+        .padding(.horizontal, 3)
     }
 
-    private var shortcuts: some View {
-        HStack(alignment: .top, spacing: 18) {
-            VStack(alignment: .leading, spacing: 13) {
-                HStack {
-                    Text("Bindings").font(.headline)
-                    Spacer()
-                    Button {
-                        draft = BindingRule(modifier: .control, input: .mouse4, action: .missionControl)
-                    } label: {
-                        Label("Add shortcut", systemImage: "plus")
-                    }
-                    .buttonStyle(.glassProminent)
-                }
+    private var bindings: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 9) {
+                Text("Action").frame(width: actionWidth, alignment: .leading)
+                Text("Gesture").frame(maxWidth: .infinity, alignment: .leading)
+                Text("On").frame(width: 34)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .frame(height: 23)
+            .accessibilityHidden(true)
+
+            Divider()
+            if store.rules.isEmpty {
+                Text("No shortcuts yet. Click Add to create one.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(store.rules) { rule in
                             bindingRow(rule)
-                            if rule.id != store.rules.last?.id { Divider().overlay(.white.opacity(0.04)).padding(.leading, 57) }
+                            if rule.id != store.rules.last?.id { Divider().padding(.leading, 37) }
                         }
                     }
                 }
-                .clipShape(.rect(cornerRadius: 15))
-                .glassPanel(radius: 15)
-                Text("\(store.rules.filter(\.enabled).count) enabled")
-                    .font(.caption).foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity)
-
-            VStack(alignment: .leading, spacing: 17) {
-                let selected = store.rules.first(where: { $0.id == selectedID }) ?? store.rules.element(at: 5) ?? store.rules.first
-                preview(selected)
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Tile vertically", systemImage: "option")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("Hold Option and left-click for the top half, or right-click for the bottom half.")
-                        .font(.caption).foregroundStyle(.secondary).lineSpacing(3)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .glassPanel(radius: 16)
-            }
-            .frame(width: 232)
         }
+        .clipShape(.rect(cornerRadius: 12))
+        .glassPanel(radius: 12)
     }
 
     private func bindingRow(_ rule: BindingRule) -> some View {
-        HStack(spacing: 10) {
-            Button {
-                selectedID = rule.id
-            } label: {
-                HStack(spacing: 11) {
-                    Image(systemName: rule.action.symbol)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(rule.enabled ? accent : Color.secondary)
-                        .frame(width: 33, height: 33)
-                        .background(accent.opacity(rule.enabled ? 0.11 : 0.04), in: .rect(cornerRadius: 9))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(rule.action.title).font(.system(size: 13, weight: .semibold))
-                        Text("\(rule.modifier.title) · \(rule.input.title)")
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
+        HStack(spacing: 9) {
+            Button { draft = rule } label: {
+                HStack(spacing: 9) {
+                    HStack(spacing: 7) {
+                        Image(systemName: rule.action.symbol)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(rule.enabled ? accent : Color.secondary)
+                            .frame(width: 20, height: 20)
+                            .background(accent.opacity(rule.enabled ? 0.12 : 0.05), in: .rect(cornerRadius: 5))
+                        Text(rule.action.title)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
                     }
-                    Spacer(minLength: 0)
+                    .frame(width: actionWidth, alignment: .leading)
+
+                    Text("\(rule.modifier.title) + \(rule.input.title)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: 27)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(rule.action.title), \(rule.modifier.title), \(rule.input.title)")
+            .help("Edit \(rule.action.title)")
+            .accessibilityLabel("Edit \(rule.action.title), \(rule.modifier.title), \(rule.input.title)")
 
             if !rule.enabled, let owner = store.rules.first(where: { $0.enabled && rule.sharesGesture(with: $0) }) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.yellow)
                     .help("This gesture is in use by \(owner.action.title)")
                     .accessibilityLabel("Gesture in use by \(owner.action.title)")
@@ -289,65 +248,29 @@ struct Dashboard: View {
                     store.save(edited)
                 }
             })) { Text("Enable \(rule.action.title)") }
-            .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-
-            Button {
-                selectedID = rule.id
-                draft = rule
-            } label: {
-                Image(systemName: "ellipsis").frame(width: 24, height: 26)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Edit \(rule.action.title)")
-            .accessibilityLabel("Edit \(rule.action.title)")
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .frame(width: 34)
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
-        .background(selectedID == rule.id ? accent.opacity(0.08) : .clear)
-    }
-
-    private func preview(_ rule: BindingRule?) -> some View {
-        VStack(alignment: .leading, spacing: 13) {
-            Text("Layout preview").font(.headline)
-            ZStack {
-                RoundedRectangle(cornerRadius: 15)
-                    .fill(LinearGradient(colors: [Color(red: 0.40, green: 0.56, blue: 0.68),
-                                                  Color(red: 0.16, green: 0.28, blue: 0.42),
-                                                  Color(red: 0.30, green: 0.49, blue: 0.61)],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
-                WindowDiagram(action: rule?.action ?? .tileTop)
-                    .padding(20)
-            }
-            .frame(height: 144)
-            .overlay { RoundedRectangle(cornerRadius: 15).strokeBorder(.white.opacity(0.23)) }
-            .accessibilityHidden(true)
-            Text(rule?.action.title ?? "Add a shortcut").font(.system(size: 16, weight: .semibold))
-            if let rule {
-                Text("\(rule.modifier.title) · \(rule.input.title)")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassPanel(radius: 19)
+        .padding(.horizontal, 10)
     }
 
     private var settings: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 17) {
-                timingSlider("Scroll pause", value: $store.scrollGap, range: 0.15 ... 0.9,
-                             detail: "Pause before another scroll in the same direction moves a Space.")
-            }
-            .padding(18)
-            .glassPanel(radius: 18)
-
-            HStack {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Accessibility").font(.headline)
-                    Text(store.trusted ? "SpaceMouse has access." : "Required to detect mouse shortcuts and move windows.")
-                        .font(.callout).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Settings").font(.headline)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Scroll pause").font(.callout.weight(.medium))
+                    Spacer()
+                    Text("\(Int(store.scrollGap * 1000)) ms").monospacedDigit().foregroundStyle(.secondary)
                 }
+                Slider(value: $store.scrollGap, in: 0.15 ... 0.9, step: 0.05) { Text("Scroll pause") }
+                    .labelsHidden()
+            }
+            Divider()
+            HStack {
+                Text(store.trusted ? "Accessibility enabled" : "Accessibility required").font(.callout)
                 Spacer()
                 Button("Open System Settings") {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
@@ -355,76 +278,36 @@ struct Dashboard: View {
                     }
                 }.buttonStyle(.glass)
             }
-            .padding(18)
-            .glassPanel(radius: 18)
-
-            Button("Restore starter shortcuts") { restoreConfirmation = true }
-                .buttonStyle(.glass)
-            Spacer()
-        }
-    }
-
-    private func timingSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(title).font(.headline)
+                Button("Restore starter shortcuts") { restoreConfirmation = true }
+                    .buttonStyle(.glass)
                 Spacer()
-                Text("\(Int(value.wrappedValue * 1000)) ms").monospacedDigit().foregroundStyle(.secondary)
-            }
-            Text(detail).font(.caption).foregroundStyle(.secondary)
-            Slider(value: value, in: range, step: 0.05) { Text(title) }
-                .labelsHidden()
-        }
-    }
-}
-
-private struct WindowDiagram: View {
-    let action: ShortcutAction
-    var body: some View {
-        GeometryReader { geometry in
-            let w = geometry.size.width
-            let h = geometry.size.height
-            let frame = tile(width: w, height: h)
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 9).fill(.black.opacity(0.2))
-                RoundedRectangle(cornerRadius: 9).strokeBorder(.white.opacity(0.50))
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(.white.opacity(0.34))
-                    .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(.white.opacity(0.76)) }
-                    .frame(width: frame.width, height: frame.height)
-                    .offset(x: frame.minX, y: frame.minY)
-                Image(systemName: action.symbol)
-                    .font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
-                    .position(x: frame.midX, y: frame.midY)
+                Button("Done") { showingSettings = false }
+                    .buttonStyle(.glassProminent)
+                    .keyboardShortcut(.cancelAction)
             }
         }
-    }
-
-    private func tile(width w: Double, height h: Double) -> CGRect {
-        switch action {
-        case .tileLeft: CGRect(x: 6, y: 6, width: w / 2 - 9, height: h - 12)
-        case .tileRight: CGRect(x: w / 2 + 3, y: 6, width: w / 2 - 9, height: h - 12)
-        case .tileTop: CGRect(x: 6, y: 6, width: w - 12, height: h / 2 - 9)
-        case .tileBottom: CGRect(x: 6, y: h / 2 + 3, width: w - 12, height: h / 2 - 9)
-        case .fullScreen, .fill: CGRect(x: 6, y: 6, width: w - 12, height: h - 12)
-        default: CGRect(x: w * 0.17, y: h * 0.15, width: w * 0.66, height: h * 0.70)
-        }
+        .controlSize(.small)
+        .padding(16)
+        .frame(width: 355)
+        .glassPanel(radius: 16)
+        .shadow(color: .black.opacity(0.30), radius: 18, y: 8)
+        .accessibilityAddTraits(.isModal)
     }
 }
 
 private struct ShortcutEditor: View {
     @State var rule: BindingRule
     @ObservedObject var store: ShortcutStore
-    let onSave: (BindingRule) -> Void
     let onDismiss: () -> Void
 
     private var existing: Bool { store.rules.contains { $0.id == rule.id } }
     private var conflict: BindingRule? { store.conflict(for: rule) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 19) {
-            Text(existing ? "Edit shortcut" : "Add shortcut").font(.title2.weight(.semibold))
-            Grid(alignment: .leading, horizontalSpacing: 22, verticalSpacing: 13) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(existing ? "Edit shortcut" : "Add shortcut").font(.headline)
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                 GridRow {
                     Text("Modifier").foregroundStyle(.secondary)
                     Picker("Modifier", selection: $rule.modifier) {
@@ -476,22 +359,19 @@ private struct ShortcutEditor: View {
                     .keyboardShortcut(.cancelAction)
                 Button(conflict == nil ? "Save" : "Replace shortcut") {
                     store.save(rule, replacingConflicts: conflict != nil)
-                    onSave(rule)
+                    onDismiss()
                 }
                 .buttonStyle(.glassProminent)
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(25)
-        .frame(width: 420)
-        .glassPanel(radius: 23)
+        .controlSize(.small)
+        .padding(17)
+        .frame(width: 365)
+        .glassPanel(radius: 17)
         .shadow(color: .black.opacity(0.30), radius: 22, y: 10)
         .accessibilityAddTraits(.isModal)
     }
-}
-
-private extension Array {
-    func element(at index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }
 
 private extension View {

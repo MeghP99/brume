@@ -33,7 +33,7 @@ The starter set also includes disabled bindings for Mission Control and the two 
 
 ## Customization
 
-Use **Add shortcut** or the ellipsis on an existing shortcut to choose its modifier, mouse input, and action. Options include Mission Control, App Exposé, center, fill, and restore window size. If a gesture is already assigned, the editor shows a warning and identifies its current action. Choose **Replace shortcut** to remove that binding and save the new one.
+Click **Add** or click an existing shortcut to choose its modifier, mouse input, and action. The gear button opens scroll timing and Accessibility settings. Options include Mission Control, App Exposé, center, fill, and restore window size. If a gesture is already assigned, the editor shows a warning and identifies its current action. Choose **Replace shortcut** to remove that binding and save the new one.
 
 Space switching and Mission Control use the corresponding macOS keyboard shortcuts. Window tiling uses the active app’s native Window → Move & Resize commands. Availability depends on the active window and the app's menus. For now the tiling menu lookup supports English menus, and scroll bindings use a physical mouse wheel. Fn can be selected on keyboards that report Fn on mouse events.
 
