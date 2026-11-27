@@ -2,6 +2,8 @@
 
 Brume is a native macOS app for mapping modified mouse clicks and scrolls to window and Space actions. It uses SwiftUI and macOS Liquid Glass and keeps all shortcut settings on the Mac.
 
+![Brume’s shortcut dashboard on macOS](docs/brume-dashboard.png)
+
 ## Build and run
 
 Requires macOS 26 or later and the Apple Command Line Tools with a macOS 26+ SDK.
@@ -37,11 +39,3 @@ Click **Add** or click an existing shortcut to choose its modifier, mouse input,
 Space switching and Mission Control use the corresponding macOS keyboard shortcuts. Window tiling uses the active app’s native Window → Move & Resize commands. Availability depends on the active window and the app's menus. For now the tiling menu lookup supports English menus, and scroll bindings use a physical mouse wheel. Fn can be selected on keyboards that report Fn on mouse events.
 
 The default Control + left-click binding replaces macOS’s context-menu gesture while the shortcuts are active. Use a regular right-click to open context menus.
-
-## Run the shortcut tests
-
-```sh
-./test.sh
-```
-
-The tests create Core Graphics mouse events and pass them through the same handler the app uses. They cover each starter binding, mouse releases and drags, wheel-burst timing, optional actions, conflict replacement, and the emitted keyboard event flags. The tests run without Accessibility permission and leave your windows and Spaces alone. To check the live behavior, grant Accessibility access and try the bindings in another app with a normal resizable window.
