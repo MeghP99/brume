@@ -132,7 +132,7 @@ struct BindingRule: Codable, Identifiable, Equatable {
         id != other.id && input == other.input && modifier == other.modifier
     }
 
-    static let centerDefault = Self(modifier: .option, input: .middle, action: .center)
+    static let optionMiddleFill = Self(modifier: .option, input: .middle, action: .fill)
     static let fillDefault = Self(modifier: .controlOption, input: .middle, action: .fill)
 
     static func addingDefault(_ rule: Self, to rules: [Self]) -> [Self] {
@@ -140,6 +140,16 @@ struct BindingRule: Codable, Identifiable, Equatable {
             return rules
         }
         return rules + [rule]
+    }
+
+    static func migratingOptionMiddleClick(in rules: [Self]) -> [Self] {
+        let updated = rules.map { rule -> Self in
+            guard rule.sharesGesture(with: optionMiddleFill), rule.action == .center else { return rule }
+            var replacement = rule
+            replacement.action = .fill
+            return replacement
+        }
+        return addingDefault(optionMiddleFill, to: updated)
     }
 
     static func applying(_ rule: Self, to rules: [Self], replacingConflicts: Bool) -> [Self]? {
@@ -161,7 +171,7 @@ struct BindingRule: Codable, Identifiable, Equatable {
         .init(modifier: .control, input: .middle, action: .fullScreen),
         .init(modifier: .option, input: .left, action: .tileTop),
         .init(modifier: .option, input: .right, action: .tileBottom),
-        centerDefault,
+        optionMiddleFill,
         fillDefault,
         .init(modifier: .controlOption, input: .scrollUp, action: .missionControl, enabled: false),
         .init(modifier: .control, input: .mouse4, action: .spaceRight, enabled: false),

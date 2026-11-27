@@ -38,7 +38,7 @@ struct ShortcutChecks {
             ("Control + middle-click", .maskControl, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .fullScreen),
             ("Option + left-click", .maskAlternate, .leftMouseDown, .leftMouseUp, .leftMouseDragged, .left, .tileTop),
             ("Option + right-click", .maskAlternate, .rightMouseDown, .rightMouseUp, .rightMouseDragged, .right, .tileBottom),
-            ("Option + middle-click", .maskAlternate, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .center),
+            ("Option + middle-click", .maskAlternate, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .fill),
             ("Control + Option + middle-click", [.maskControl, .maskAlternate], .otherMouseDown, .otherMouseUp,
              .otherMouseDragged, .center, .fill)
         ]
@@ -156,12 +156,16 @@ struct ShortcutChecks {
                   "Disabled shortcuts may share a gesture")
         let enabled = BindingRule.applying(replacement, to: rules + [disabled], replacingConflicts: true)
         try check(enabled == [unrelated, replacement], "Enabling a conflicting shortcut must replace the enabled owner")
-        try check(BindingRule.addingDefault(.centerDefault, to: [unrelated]) == [unrelated, BindingRule.centerDefault],
+        try check(BindingRule.migratingOptionMiddleClick(in: [unrelated]) == [unrelated, .optionMiddleFill],
                   "Existing settings must gain the new default")
-        try check(BindingRule.addingDefault(.centerDefault, to: [unrelated, replacement]) == [unrelated, replacement],
+        try check(BindingRule.migratingOptionMiddleClick(in: [unrelated, replacement]) == [unrelated, replacement],
                   "Updating the defaults must preserve the user's custom gesture")
-        try check(BindingRule.addingDefault(.centerDefault, to: [unrelated, disabled]) == [unrelated, disabled],
+        try check(BindingRule.migratingOptionMiddleClick(in: [unrelated, disabled]) == [unrelated, disabled],
                   "Updating the defaults must preserve a disabled custom gesture")
+        var upgraded = previous
+        upgraded.action = .fill
+        try check(BindingRule.migratingOptionMiddleClick(in: rules) == [upgraded, unrelated],
+                  "Existing Option + middle-click Center must become Fill without changing its ID")
         let customizedFillGesture = BindingRule(modifier: .controlOption, input: .middle, action: .restore, enabled: false)
         try check(BindingRule.addingDefault(.fillDefault, to: rules) == rules + [.fillDefault],
                   "Existing settings must gain Fill when its gesture is free")
