@@ -10,6 +10,7 @@ struct SpaceMouseApp: App {
             Dashboard(store: store)
                 .frame(minWidth: 920, minHeight: 640)
                 .preferredColorScheme(.dark)
+                .containerBackground(.clear, for: .window)
         }
         .defaultSize(width: 1020, height: 720)
         .windowStyle(.hiddenTitleBar)
@@ -104,21 +105,17 @@ struct Dashboard: View {
 
     private var backdrop: some View {
         ZStack {
-            LinearGradient(colors: [Color(red: 0.045, green: 0.055, blue: 0.15),
-                                    Color(red: 0.075, green: 0.09, blue: 0.20),
-                                    Color(red: 0.03, green: 0.06, blue: 0.14)],
+            DesktopGlass()
+            LinearGradient(colors: [Color(red: 0.05, green: 0.05, blue: 0.18).opacity(0.54),
+                                    Color(red: 0.04, green: 0.06, blue: 0.14).opacity(0.44),
+                                    Color(red: 0.02, green: 0.10, blue: 0.17).opacity(0.44)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
-            RadialGradient(colors: [Color(red: 0.31, green: 0.17, blue: 0.72).opacity(0.78), .clear],
-                           center: .init(x: 0.22, y: -0.12), startRadius: 25, endRadius: 560)
-            RadialGradient(colors: [Color(red: 0.12, green: 0.48, blue: 0.67).opacity(0.54), .clear],
-                           center: .init(x: 0.90, y: 0.93), startRadius: 0, endRadius: 540)
-            Ellipse()
-                .strokeBorder(.white.opacity(0.12), lineWidth: 72)
-                .frame(width: 680, height: 345)
-                .rotationEffect(.degrees(-32))
-                .blur(radius: 48)
-                .offset(x: 370, y: 200)
+            RadialGradient(colors: [Color(red: 0.38, green: 0.19, blue: 0.91).opacity(0.35), .clear],
+                           center: .init(x: 0.18, y: -0.10), startRadius: 0, endRadius: 560)
+            RadialGradient(colors: [Color(red: 0.07, green: 0.64, blue: 0.78).opacity(0.24), .clear],
+                           center: .init(x: 0.90, y: 0.93), startRadius: 0, endRadius: 480)
         }
+        .allowsHitTesting(false)
         .ignoresSafeArea()
     }
 
@@ -455,6 +452,30 @@ private extension View {
                 .strokeBorder(LinearGradient(colors: [.white.opacity(0.34), .white.opacity(0.06), .white.opacity(0.15)],
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
                 .allowsHitTesting(false)
+        }
+    }
+}
+
+private struct DesktopGlass: NSViewRepresentable {
+    func makeNSView(context: Context) -> GlassBackdrop {
+        let view = GlassBackdrop()
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.58
+        return view
+    }
+
+    func updateNSView(_ view: GlassBackdrop, context: Context) {
+        view.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.58
+    }
+
+    final class GlassBackdrop: NSVisualEffectView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.isOpaque = false
+            window?.backgroundColor = .clear
+            window?.titlebarAppearsTransparent = true
         }
     }
 }
