@@ -21,14 +21,19 @@ final class ShortcutStore: ObservableObject {
     init() {
         let saved = defaults.data(forKey: "bindings")
             .flatMap { try? JSONDecoder().decode([BindingRule].self, from: $0) }
-        if let saved, defaults.integer(forKey: "bindingPresetVersion") < 1 {
-            let migrated = BindingRule.addingCenterDefault(to: saved)
+        let presetVersion = defaults.integer(forKey: "bindingPresetVersion")
+        if let saved, presetVersion < 2 {
+            var migrated = saved
+            if presetVersion < 1 {
+                migrated = BindingRule.addingDefault(.centerDefault, to: migrated)
+            }
+            migrated = BindingRule.addingDefault(.fillDefault, to: migrated)
             rules = migrated
             if let data = try? JSONEncoder().encode(migrated) { defaults.set(data, forKey: "bindings") }
         } else {
             rules = saved ?? BindingRule.starter
         }
-        defaults.set(1, forKey: "bindingPresetVersion")
+        defaults.set(2, forKey: "bindingPresetVersion")
         scrollGap = defaults.object(forKey: "scrollGap") as? Double ?? 0.45
         engine.rules = rules
         engine.scrollGap = scrollGap

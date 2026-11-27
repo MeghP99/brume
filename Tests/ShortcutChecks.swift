@@ -38,7 +38,9 @@ struct ShortcutChecks {
             ("Control + middle-click", .maskControl, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .fullScreen),
             ("Option + left-click", .maskAlternate, .leftMouseDown, .leftMouseUp, .leftMouseDragged, .left, .tileTop),
             ("Option + right-click", .maskAlternate, .rightMouseDown, .rightMouseUp, .rightMouseDragged, .right, .tileBottom),
-            ("Option + middle-click", .maskAlternate, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .center)
+            ("Option + middle-click", .maskAlternate, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .center, .center),
+            ("Control + Option + middle-click", [.maskControl, .maskAlternate], .otherMouseDown, .otherMouseUp,
+             .otherMouseDragged, .center, .fill)
         ]
         for (label, flags, down, up, drag, button, action) in clicks {
             let ordinary = mouse(down, button: button, flags: [])
@@ -154,12 +156,17 @@ struct ShortcutChecks {
                   "Disabled shortcuts may share a gesture")
         let enabled = BindingRule.applying(replacement, to: rules + [disabled], replacingConflicts: true)
         try check(enabled == [unrelated, replacement], "Enabling a conflicting shortcut must replace the enabled owner")
-        try check(BindingRule.addingCenterDefault(to: [unrelated]) == [unrelated, BindingRule.centerDefault],
+        try check(BindingRule.addingDefault(.centerDefault, to: [unrelated]) == [unrelated, BindingRule.centerDefault],
                   "Existing settings must gain the new default")
-        try check(BindingRule.addingCenterDefault(to: [unrelated, replacement]) == [unrelated, replacement],
+        try check(BindingRule.addingDefault(.centerDefault, to: [unrelated, replacement]) == [unrelated, replacement],
                   "Updating the defaults must preserve the user's custom gesture")
-        try check(BindingRule.addingCenterDefault(to: [unrelated, disabled]) == [unrelated, disabled],
+        try check(BindingRule.addingDefault(.centerDefault, to: [unrelated, disabled]) == [unrelated, disabled],
                   "Updating the defaults must preserve a disabled custom gesture")
+        let customizedFillGesture = BindingRule(modifier: .controlOption, input: .middle, action: .restore, enabled: false)
+        try check(BindingRule.addingDefault(.fillDefault, to: rules) == rules + [.fillDefault],
+                  "Existing settings must gain Fill when its gesture is free")
+        try check(BindingRule.addingDefault(.fillDefault, to: rules + [customizedFillGesture]) == rules + [customizedFillGesture],
+                  "The Fill migration must preserve existing user bindings")
         print("PASS Conflict detection, explicit replacement, and migration of existing shortcuts")
     }
 

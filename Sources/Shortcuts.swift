@@ -133,12 +133,13 @@ struct BindingRule: Codable, Identifiable, Equatable {
     }
 
     static let centerDefault = Self(modifier: .option, input: .middle, action: .center)
+    static let fillDefault = Self(modifier: .controlOption, input: .middle, action: .fill)
 
-    static func addingCenterDefault(to rules: [Self]) -> [Self] {
-        guard !rules.contains(where: { $0.sharesGesture(with: centerDefault) || $0.id == centerDefault.id }) else {
+    static func addingDefault(_ rule: Self, to rules: [Self]) -> [Self] {
+        guard !rules.contains(where: { $0.modifier == rule.modifier && $0.input == rule.input }) else {
             return rules
         }
-        return rules + [centerDefault]
+        return rules + [rule]
     }
 
     static func applying(_ rule: Self, to rules: [Self], replacingConflicts: Bool) -> [Self]? {
@@ -161,6 +162,7 @@ struct BindingRule: Codable, Identifiable, Equatable {
         .init(modifier: .option, input: .left, action: .tileTop),
         .init(modifier: .option, input: .right, action: .tileBottom),
         centerDefault,
+        fillDefault,
         .init(modifier: .controlOption, input: .scrollUp, action: .missionControl, enabled: false),
         .init(modifier: .control, input: .mouse4, action: .spaceRight, enabled: false),
         .init(modifier: .control, input: .mouse5, action: .spaceLeft, enabled: false)
