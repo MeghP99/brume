@@ -4,11 +4,11 @@ import SwiftUI
 private let secondaryInk = Color(red: 0.19, green: 0.24, blue: 0.30)
 
 @main
-struct SpaceMouseApp: App {
+struct BrumeApp: App {
     @StateObject private var store = ShortcutStore()
 
     var body: some Scene {
-        Window("SpaceMouse", id: "dashboard") {
+        Window("Brume", id: "dashboard") {
             Dashboard(store: store)
                 .frame(minWidth: 510, minHeight: 320)
                 .preferredColorScheme(.light)
@@ -18,7 +18,7 @@ struct SpaceMouseApp: App {
         .restorationBehavior(.disabled)
         .windowStyle(.hiddenTitleBar)
 
-        MenuBarExtra("SpaceMouse", systemImage: "computermouse") {
+        MenuBarExtra("Brume", systemImage: "computermouse") {
             MenuBarControls(store: store)
         }
     }
@@ -29,7 +29,7 @@ private struct MenuBarControls: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("Open SpaceMouse") { showWindow() }
+        Button("Open Brume") { showWindow() }
         if store.running {
             Button("Pause shortcuts") { store.pause() }
         } else if store.paused {
@@ -38,7 +38,7 @@ private struct MenuBarControls: View {
             Button("Enable Accessibility") { showWindow(); store.requestAccess() }
         }
         Divider()
-        Button("Quit SpaceMouse") { NSApp.terminate(nil) }
+        Button("Quit Brume") { NSApp.terminate(nil) }
     }
 
     private func showWindow() {
@@ -144,7 +144,7 @@ struct Dashboard: View {
                 .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(accent.opacity(0.24)) }
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
-                Text("SpaceMouse").font(.system(size: 20, weight: .semibold)).tracking(-0.25)
+                Text("Brume").font(.system(size: 20, weight: .semibold)).tracking(-0.25)
                 Text("Shortcuts").font(.system(size: 12, weight: .medium)).foregroundStyle(secondaryInk)
             }
 

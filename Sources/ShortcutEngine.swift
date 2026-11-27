@@ -93,7 +93,7 @@ final class ShortcutEngine {
         default: break
         }
 
-        // The editor receives normal mouse input while SpaceMouse has focus.
+        // The editor receives normal mouse input while Brume has focus.
         guard let modifier = Modifier.matching(event.flags),
               let rule = rules.first(where: { $0.enabled && $0.input == input && $0.modifier == modifier }),
               let target = target(), target != ProcessInfo.processInfo.processIdentifier else {

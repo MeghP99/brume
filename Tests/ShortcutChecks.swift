@@ -46,7 +46,7 @@ struct ShortcutChecks {
             let trigger = mouse(down, button: button, flags: flags)
             try check(engine.route(down, trigger, target: nil, at: 1) == .pass, "\(label): no active window target")
             try check(engine.route(down, trigger, target: ProcessInfo.processInfo.processIdentifier, at: 1) == .pass,
-                      "\(label): SpaceMouse's editor must receive clicks")
+                      "\(label): Brume's editor must receive clicks")
             for attempt in 1...2 {
                 try check(engine.route(down, trigger, target: target, at: 2) == .run(action, target: target),
                           "\(label): wrong action on attempt \(attempt)")

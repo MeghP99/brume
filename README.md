@@ -1,6 +1,6 @@
-# SpaceMouse
+# Brume
 
-SpaceMouse is a native macOS app for mapping modified mouse clicks and scrolls to window and Space actions. It uses SwiftUI and macOS Liquid Glass and keeps all shortcut settings on the Mac.
+Brume is a native macOS app for mapping modified mouse clicks and scrolls to window and Space actions. It uses SwiftUI and macOS Liquid Glass and keeps all shortcut settings on the Mac.
 
 ## Build and run
 
@@ -8,10 +8,10 @@ Requires macOS 26 or later and the Apple Command Line Tools with a macOS 26+ SDK
 
 ```sh
 ./build.sh
-open .build/SpaceMouse.app
+open .build/Brume.app
 ```
 
-Select **Enable Accessibility** if macOS has not granted SpaceMouse permission. SpaceMouse activates shortcuts automatically when you return after granting access in **System Settings → Privacy & Security → Accessibility**. If the earlier SpaceMouse launch agent is loaded, SpaceMouse pauses it while the app handles shortcuts. Pausing from the menu bar or quitting restores the earlier agent. Closing the window keeps the app available from the menu bar.
+Select **Enable Accessibility** if macOS has not granted Brume permission. Brume activates shortcuts automatically when you return after granting access in **System Settings → Privacy & Security → Accessibility**. If the earlier SpaceMouse launch agent is loaded, Brume pauses it while the app handles shortcuts. Pausing from the menu bar or quitting restores the earlier agent. Closing the window keeps the app available from the menu bar.
 
 Try the shortcuts while another app has focus. The shortcut editor itself passes through normal mouse input.
 
